@@ -3,7 +3,9 @@ from flask_cors import CORS
 import psycopg2
 import random
 import os
+import re
 from dotenv import load_dotenv
+from groq import Groq
 
 load_dotenv()
 
@@ -12,13 +14,18 @@ CORS(app)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+
+
 def get_db_connection():
     conn = psycopg2.connect(DATABASE_URL)
     return conn
 
+
 @app.route("/")
 def home():
     return "FairFare backend is running!"
+
 
 @app.route("/api/search-fares", methods=["POST"])
 def search_fares():
@@ -39,35 +46,142 @@ def search_fares():
     cur.close()
     conn.close()
 
-    base_fare = random.randint(160, 240)
-    base_eta = random.randint(16, 25)
+    base_fare = random.randint(150, 250)
+    base_eta = random.randint(10, 20)
+
+    fare_diff_uber = random.randint(-7, 7)
+    fare_diff_ola = random.randint(-7, 7)
+    fare_diff_rapido = random.randint(-7, 7)
+
+    eta_diff_uber = random.randint(-4, 4)
+    eta_diff_ola = random.randint(-4, 4)
+    eta_diff_rapido = random.randint(-4, 4)
 
     fares = [
         {
             "service": "Uber",
-            "fare": base_fare + random.randint(-15, 10),
-            "eta_minutes": base_eta + random.randint(-5, 3)
+            "fare": base_fare + fare_diff_uber,
+            "eta_minutes": max(3, base_eta + eta_diff_uber)
         },
         {
             "service": "Ola",
-            "fare": base_fare + random.randint(-15, 15),
-            "eta_minutes": base_eta + random.randint(-3, 5)
+            "fare": base_fare + fare_diff_ola,
+            "eta_minutes": max(3, base_eta + eta_diff_ola)
         },
         {
             "service": "Rapido",
-            "fare": base_fare  + random.randint(-20, 10),
-            "eta_minutes": base_eta + random.randint(-5, 3)
+            "fare": base_fare + fare_diff_rapido,
+            "eta_minutes": max(3, base_eta + eta_diff_rapido)
         },
-    ]  
+    ]
 
     cheapest = min(fares, key=lambda f: f["fare"])
     fastest = min(fares, key=lambda f: f["eta_minutes"])
 
     return jsonify({
-        "pickup":pickup, "drop": drop, "fares": fares, 
-        "recommendations": {"best_for_cost": cheapest["service"],
-        "best_for_time": fastest["service"]}
+        "pickup": pickup,
+        "drop": drop,
+        "fares": fares,
+        "recommendations": {
+            "best_for_cost": cheapest["service"],
+            "best_for_time": fastest["service"]
+        }
+    })
+
+
+@app.route("/api/recommend", methods=["POST"])
+def recommend():
+    data = request.get_json()
+    fares = data.get("fares")
+    preference = data.get("preference")
+
+    if not fares or not preference:
+        return jsonify({"error": "Fares and preference are required"}), 400
+
+    pref_lower = preference.lower()
+    time_match = re.search(r'(\d+)\s*(?:min|mins|minute|minutes)', pref_lower)
+    budget_match = re.search(r'(?:₹|rs\.?|rupees?)\s*(\d+)|(\d+)\s*(?:₹|rs\.?|rupees?)', pref_lower)
+
+    fact = None
+    pick = None
+
+    if time_match:
+        max_minutes = int(time_match.group(1))
+        eligible = [f for f in fares if f["eta_minutes"] <= max_minutes]
+        if eligible:
+            pick = min(eligible, key=lambda f: f["fare"])
+            fact = f"{pick['service']} takes {pick['eta_minutes']} mins to reach your destination (within your {max_minutes} mins limit), at ₹{pick['fare']}, the cheapest option that qualifies."
+        else:
+            pick = min(fares, key=lambda f: f["eta_minutes"])
+            fact = f"No option meets your {max_minutes} mins limit. {pick['service']} is closest, taking {pick['eta_minutes']} mins to reach your destination — recommend it as the best available."
+
+    elif budget_match:
+        max_budget = int(budget_match.group(1) or budget_match.group(2))
+        eligible = [f for f in fares if f["fare"] <= max_budget]
+        if eligible:
+            pick = min(eligible, key=lambda f: f["eta_minutes"])
+            fact = f"{pick['service']} costs ₹{pick['fare']} (within your ₹{max_budget} budget) and takes {pick['eta_minutes']} mins to reach your destination, the fastest option that qualifies."
+        else:
+            pick = min(fares, key=lambda f: f["fare"])
+            fact = f"No option fits your ₹{max_budget} budget. {pick['service']} is closest at ₹{pick['fare']} — recommend it as the best available."
+
+    if fact:
+        prompt = f"""Write ONE short, friendly sentence (max 15 words) based on this fact: {fact}
+    Do not add extra information or change the facts."""
+        completion = groq_client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return jsonify({
+            "service": pick["service"],
+            "recommendation": completion.choices[0].message.content.strip()
         })
+
+    # No explicit numeric constraint — AI interprets urgency, code decides using normalized scoring
+    urgency_prompt = f"""The user said: "{preference}"
+
+    On a scale of 1 to 10, how much do they prioritize SPEED over COST?
+    1 means they only care about saving money, 10 means they only care about arriving fast, 5 means balanced.
+
+    Respond with ONLY a single number, nothing else."""
+
+    urgency_completion = groq_client.chat.completions.create(
+        model="llama-3.1-8b-instant",
+        messages=[{"role": "user", "content": urgency_prompt}]
+    )
+
+    try:
+        urgency_score = int(re.search(r'\d+', urgency_completion.choices[0].message.content).group())
+        urgency_score = max(1, min(10, urgency_score))
+    except (AttributeError, ValueError):
+        urgency_score = 5
+
+    fare_values = [f["fare"] for f in fares]
+    eta_values = [f["eta_minutes"] for f in fares]
+    fare_range = max(fare_values) - min(fare_values) or 1
+    eta_range = max(eta_values) - min(eta_values) or 1
+
+    urgency_frac = urgency_score / 10
+
+    for f in fares:
+        normalized_fare = (f["fare"] - min(fare_values)) / fare_range
+        normalized_eta = (f["eta_minutes"] - min(eta_values)) / eta_range
+        f["value_score"] = (normalized_fare * (1 - urgency_frac)) + (normalized_eta * urgency_frac)
+
+    best_value = min(fares, key=lambda f: f["value_score"])
+
+    fact = f"{best_value['service']} offers the best overall balance for your preference (₹{best_value['fare']}, {best_value['eta_minutes']} mins)."
+
+    prompt = f"""Write ONE short, friendly sentence (max 15 words) based on this fact: {fact}
+    Do not add extra information or change the facts."""
+    completion = groq_client.chat.completions.create(
+        model="llama-3.1-8b-instant",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return jsonify({
+        "service": best_value["service"],
+        "recommendation": completion.choices[0].message.content.strip()
+    })
 
 
 if __name__ == "__main__":
