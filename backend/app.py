@@ -4,12 +4,14 @@ import psycopg2
 import random
 import os
 import re
-from dotenv import load_dotenv
-from groq import Groq
-
+import datetime
 import bcrypt
 import jwt
-import datetime
+import smtplib
+from email.mime.text import MIMEText
+from functools import wraps
+from dotenv import load_dotenv
+from groq import Groq
 
 load_dotenv()
 
@@ -17,6 +19,7 @@ app = Flask(__name__)
 CORS(app)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+JWT_SECRET = os.getenv("JWT_SECRET", "temporary-dev-secret-change-this")
 
 groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
@@ -25,7 +28,6 @@ def get_db_connection():
     conn = psycopg2.connect(DATABASE_URL)
     return conn
 
-from functools import wraps
 
 def require_auth(f):
     @wraps(f)
@@ -55,6 +57,180 @@ def home():
     return "FairFare backend is running!"
 
 
+# ---------------- AUTH ROUTES ----------------
+
+@app.route("/api/signup", methods=["POST"])
+def signup():
+    data = request.get_json()
+    email = data.get("email")
+    password = data.get("password")
+
+    if not email or not password:
+        return jsonify({"error": "Email and password are required"}), 400
+
+    if len(password) < 6:
+        return jsonify({"error": "Password must be at least 6 characters"}), 400
+
+    password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "INSERT INTO users (email, password_hash) VALUES (%s, %s) RETURNING id",
+            (email, password_hash.decode("utf-8"))
+        )
+        user_id = cur.fetchone()[0]
+        conn.commit()
+    except psycopg2.errors.UniqueViolation:
+        conn.rollback()
+        cur.close()
+        conn.close()
+        return jsonify({"error": "An account with this email already exists"}), 409
+
+    cur.close()
+    conn.close()
+
+    token = jwt.encode(
+        {"user_id": user_id, "email": email, "exp": datetime.datetime.utcnow() + datetime.timedelta(days=7)},
+        JWT_SECRET,
+        algorithm="HS256"
+    )
+
+    return jsonify({"token": token, "email": email}), 201
+
+
+@app.route("/api/login", methods=["POST"])
+def login():
+    data = request.get_json()
+    email = data.get("email")
+    password = data.get("password")
+
+    if not email or not password:
+        return jsonify({"error": "Email and password are required"}), 400
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT id, password_hash FROM users WHERE email = %s", (email,))
+    user = cur.fetchone()
+    cur.close()
+    conn.close()
+
+    if not user:
+        return jsonify({"error": "Invalid email or password"}), 401
+
+    user_id, stored_hash = user
+
+    if not bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8")):
+        return jsonify({"error": "Invalid email or password"}), 401
+
+    token = jwt.encode(
+        {"user_id": user_id, "email": email, "exp": datetime.datetime.utcnow() + datetime.timedelta(days=7)},
+        JWT_SECRET,
+        algorithm="HS256"
+    )
+
+    return jsonify({"token": token, "email": email})
+
+
+@app.route("/api/forgot-password", methods=["POST"])
+def forgot_password():
+    data = request.get_json()
+    email = data.get("email")
+
+    if not email:
+        return jsonify({"error": "Email is required"}), 400
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM users WHERE email = %s", (email,))
+    user = cur.fetchone()
+
+    if not user:
+        cur.close()
+        conn.close()
+        return jsonify({"message": "If this email exists, an OTP has been sent"}), 200
+
+    otp_code = str(random.randint(100000, 999999))
+    expires_at = datetime.datetime.utcnow() + datetime.timedelta(minutes=10)
+
+    cur.execute(
+        "INSERT INTO password_resets (email, otp_code, expires_at) VALUES (%s, %s, %s)",
+        (email, otp_code, expires_at)
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    try:
+        msg = MIMEText(f"Your FairFare password reset code is: {otp_code}\nThis code expires in 10 minutes.")
+        msg["Subject"] = "FairFare Password Reset Code"
+        msg["From"] = os.getenv("EMAIL_ADDRESS")
+        msg["To"] = email
+
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()
+            server.login(os.getenv("EMAIL_ADDRESS"), os.getenv("EMAIL_APP_PASSWORD"))
+            server.send_message(msg)
+    except Exception as e:
+        return jsonify({"error": "Failed to send email"}), 500
+
+    return jsonify({"message": "If this email exists, an OTP has been sent"}), 200
+
+
+@app.route("/api/reset-password", methods=["POST"])
+def reset_password():
+    data = request.get_json()
+    email = data.get("email")
+    otp_code = data.get("otp_code")
+    new_password = data.get("new_password")
+
+    if not email or not otp_code or not new_password:
+        return jsonify({"error": "Email, OTP code, and new password are required"}), 400
+
+    if len(new_password) < 6:
+        return jsonify({"error": "Password must be at least 6 characters"}), 400
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """SELECT id, expires_at, used FROM password_resets
+           WHERE email = %s AND otp_code = %s
+           ORDER BY id DESC LIMIT 1""",
+        (email, otp_code)
+    )
+    reset_row = cur.fetchone()
+
+    if not reset_row:
+        cur.close()
+        conn.close()
+        return jsonify({"error": "Invalid OTP code"}), 400
+
+    reset_id, expires_at, used = reset_row
+
+    if used:
+        cur.close()
+        conn.close()
+        return jsonify({"error": "This OTP code has already been used"}), 400
+
+    if datetime.datetime.utcnow() > expires_at:
+        cur.close()
+        conn.close()
+        return jsonify({"error": "This OTP code has expired"}), 400
+
+    new_hash = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt())
+
+    cur.execute("UPDATE users SET password_hash = %s WHERE email = %s", (new_hash.decode("utf-8"), email))
+    cur.execute("UPDATE password_resets SET used = TRUE WHERE id = %s", (reset_id,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return jsonify({"message": "Password reset successful"})
+
+
+# ---------------- FARE SEARCH + AI ROUTES ----------------
+
 @app.route("/api/search-fares", methods=["POST"])
 @require_auth
 def search_fares():
@@ -68,8 +244,9 @@ def search_fares():
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(
-    "INSERT INTO fare_searches (pickup_location, drop_location, user_id) VALUES (%s, %s, %s)",
-    (pickup, drop, request.user_id))
+        "INSERT INTO fare_searches (pickup_location, drop_location, user_id) VALUES (%s, %s, %s)",
+        (pickup, drop, request.user_id)
+    )
     conn.commit()
     cur.close()
     conn.close()
@@ -118,6 +295,7 @@ def search_fares():
 
 
 @app.route("/api/recommend", methods=["POST"])
+@require_auth
 def recommend():
     data = request.get_json()
     fares = data.get("fares")
@@ -155,7 +333,7 @@ def recommend():
 
     if fact:
         prompt = f"""Write ONE short, friendly sentence (max 15 words) based on this fact: {fact}
-    Do not add extra information or change the facts."""
+        Do not add extra information or change the facts."""
         completion = groq_client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[{"role": "user", "content": prompt}]
@@ -211,79 +389,6 @@ def recommend():
         "recommendation": completion.choices[0].message.content.strip()
     })
 
-JWT_SECRET = os.getenv("JWT_SECRET", "temporary-dev-secret-change-this")
-
-@app.route("/api/signup", methods=["POST"])
-def signup():
-    data = request.get_json()
-    email = data.get("email")
-    password = data.get("password")
-
-    if not email or not password:
-        return jsonify({"error": "Email and password are required"}), 400
-
-    if len(password) < 6:
-        return jsonify({"error": "Password must be at least 6 characters"}), 400
-
-    password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
-
-    conn = get_db_connection()
-    cur = conn.cursor()
-    try:
-        cur.execute(
-            "INSERT INTO users (email, password_hash) VALUES (%s, %s) RETURNING id",
-            (email, password_hash.decode("utf-8"))
-        )
-        user_id = cur.fetchone()[0]
-        conn.commit()
-    except psycopg2.errors.UniqueViolation:
-        conn.rollback()
-        cur.close()
-        conn.close()
-        return jsonify({"error": "An account with this email already exists"}), 409
-
-    cur.close()
-    conn.close()
-
-    token = jwt.encode(
-        {"user_id": user_id, "email": email, "exp": datetime.datetime.utcnow() + datetime.timedelta(days=7)},
-        JWT_SECRET,
-        algorithm="HS256"
-    )
-
-    return jsonify({"token": token, "email": email}), 201
-
-@app.route("/api/login", methods=["POST"])
-def login():
-    data = request.get_json()
-    email = data.get("email")
-    password = data.get("password")
-
-    if not email or not password:
-        return jsonify({"error": "Email and password are required"}), 400
-
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT id, password_hash FROM users WHERE email = %s", (email,))
-    user = cur.fetchone()
-    cur.close()
-    conn.close()
-
-    if not user:
-        return jsonify({"error": "Invalid email or password"}), 401
-
-    user_id, stored_hash = user
-
-    if not bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8")):
-        return jsonify({"error": "Invalid email or password"}), 401
-
-    token = jwt.encode(
-        {"user_id": user_id, "email": email, "exp": datetime.datetime.utcnow() + datetime.timedelta(days=7)},
-        JWT_SECRET,
-        algorithm="HS256"
-    )
-
-    return jsonify({"token": token, "email": email})
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
