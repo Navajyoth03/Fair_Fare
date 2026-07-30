@@ -1,7 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './App.css'
+import Auth from './Auth'
 
 function App() {
+  const [token, setToken] = useState(localStorage.getItem('token'))
+  const [userEmail, setUserEmail] = useState(localStorage.getItem('email'))
+
   const [pickup, setPickup] = useState('')
   const [drop, setDrop] = useState('')
   const [fares, setFares] = useState(null)
@@ -11,12 +15,40 @@ function App() {
   const [aiRecommendation, setAiRecommendation] = useState('')
   const [loadingAi, setLoadingAi] = useState(false)
 
+  const handleLoginSuccess = (newToken, email) => {
+    setToken(newToken)
+    setUserEmail(email)
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem('token')
+    localStorage.removeItem('email')
+    setToken(null)
+    setUserEmail(null)
+    setFares(null)
+    setRecommendations(null)
+    setPickup('')
+    setDrop('')
+    setPreference('')
+    setAiRecommendation('')
+    setAiService('')
+  }
+
   const handleSearch = async () => {
     const response = await fetch('http://127.0.0.1:5000/api/search-fares', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
       body: JSON.stringify({ pickup, drop })
     })
+
+    if (response.status === 401) {
+      handleLogout()
+      return
+    }
+
     const data = await response.json()
     setFares(data.fares)
     setRecommendations(data.recommendations)
@@ -28,7 +60,10 @@ function App() {
     setLoadingAi(true)
     const response = await fetch('http://127.0.0.1:5000/api/recommend', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
       body: JSON.stringify({ fares, preference })
     })
     const data = await response.json()
@@ -37,9 +72,18 @@ function App() {
     setLoadingAi(false)
   }
 
+  if (!token) {
+    return <Auth onLoginSuccess={handleLoginSuccess} />
+  }
+
   return (
     <div className="App">
-      <h1>FairFare</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h1>FairFare</h1>
+        <button onClick={handleLogout} style={{ width: 'auto', padding: '6px 12px' }}>
+          Logout 
+        </button>
+      </div>
 
       <input
         type="text"
@@ -70,7 +114,7 @@ function App() {
             <h3>Have a specific need? Ask the assistant</h3>
             <input
               type="text"
-              placeholder="e.g. I need to be there in 15 mins"
+              placeholder="e.g. I need to reach by 6:15, it's 5:45 now"
               value={preference}
               onChange={(e) => setPreference(e.target.value)}
             />
