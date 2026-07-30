@@ -7,6 +7,10 @@ import re
 from dotenv import load_dotenv
 from groq import Groq
 
+import bcrypt
+import jwt
+import datetime
+
 load_dotenv()
 
 app = Flask(__name__)
@@ -21,6 +25,30 @@ def get_db_connection():
     conn = psycopg2.connect(DATABASE_URL)
     return conn
 
+from functools import wraps
+
+def require_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth_header = request.headers.get("Authorization")
+
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Missing or invalid authorization token"}), 401
+
+        token = auth_header.split(" ")[1]
+
+        try:
+            payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token has expired, please log in again"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Invalid token"}), 401
+
+        request.user_id = payload["user_id"]
+        return f(*args, **kwargs)
+
+    return decorated
+
 
 @app.route("/")
 def home():
@@ -28,6 +56,7 @@ def home():
 
 
 @app.route("/api/search-fares", methods=["POST"])
+@require_auth
 def search_fares():
     data = request.get_json()
     pickup = data.get("pickup")
@@ -39,9 +68,8 @@ def search_fares():
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(
-        "INSERT INTO fare_searches (pickup_location, drop_location) VALUES (%s, %s)",
-        (pickup, drop)
-    )
+    "INSERT INTO fare_searches (pickup_location, drop_location, user_id) VALUES (%s, %s, %s)",
+    (pickup, drop, request.user_id))
     conn.commit()
     cur.close()
     conn.close()
@@ -183,6 +211,79 @@ def recommend():
         "recommendation": completion.choices[0].message.content.strip()
     })
 
+JWT_SECRET = os.getenv("JWT_SECRET", "temporary-dev-secret-change-this")
+
+@app.route("/api/signup", methods=["POST"])
+def signup():
+    data = request.get_json()
+    email = data.get("email")
+    password = data.get("password")
+
+    if not email or not password:
+        return jsonify({"error": "Email and password are required"}), 400
+
+    if len(password) < 6:
+        return jsonify({"error": "Password must be at least 6 characters"}), 400
+
+    password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "INSERT INTO users (email, password_hash) VALUES (%s, %s) RETURNING id",
+            (email, password_hash.decode("utf-8"))
+        )
+        user_id = cur.fetchone()[0]
+        conn.commit()
+    except psycopg2.errors.UniqueViolation:
+        conn.rollback()
+        cur.close()
+        conn.close()
+        return jsonify({"error": "An account with this email already exists"}), 409
+
+    cur.close()
+    conn.close()
+
+    token = jwt.encode(
+        {"user_id": user_id, "email": email, "exp": datetime.datetime.utcnow() + datetime.timedelta(days=7)},
+        JWT_SECRET,
+        algorithm="HS256"
+    )
+
+    return jsonify({"token": token, "email": email}), 201
+
+@app.route("/api/login", methods=["POST"])
+def login():
+    data = request.get_json()
+    email = data.get("email")
+    password = data.get("password")
+
+    if not email or not password:
+        return jsonify({"error": "Email and password are required"}), 400
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT id, password_hash FROM users WHERE email = %s", (email,))
+    user = cur.fetchone()
+    cur.close()
+    conn.close()
+
+    if not user:
+        return jsonify({"error": "Invalid email or password"}), 401
+
+    user_id, stored_hash = user
+
+    if not bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8")):
+        return jsonify({"error": "Invalid email or password"}), 401
+
+    token = jwt.encode(
+        {"user_id": user_id, "email": email, "exp": datetime.datetime.utcnow() + datetime.timedelta(days=7)},
+        JWT_SECRET,
+        algorithm="HS256"
+    )
+
+    return jsonify({"token": token, "email": email})
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
