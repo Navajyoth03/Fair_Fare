@@ -390,5 +390,64 @@ def recommend():
     })
 
 
+@app.route("/api/search-history", methods=["GET"])
+@require_auth
+def search_history():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """SELECT fs.pickup_location, fs.drop_location, fs.created_at
+           FROM fare_searches fs
+           JOIN users u ON fs.user_id = u.id
+           WHERE u.id = %s
+           ORDER BY fs.created_at DESC
+           LIMIT 25""",
+        (request.user_id,)
+    )
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    history = [
+        {"pickup": row[0], "drop": row[1], "time": row[2].isoformat()}
+        for row in rows
+    ]
+    return jsonify(history)
+
+
+@app.route("/api/recent-locations", methods=["GET"])
+@require_auth
+def recent_locations():
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """SELECT pickup_location, MAX(created_at) as last_used
+           FROM fare_searches
+           WHERE user_id = %s
+           GROUP BY pickup_location
+           ORDER BY last_used DESC
+           LIMIT 5""",
+        (request.user_id,)
+    )
+    pickups = [row[0] for row in cur.fetchall()]
+
+    cur.execute(
+        """SELECT drop_location, MAX(created_at) as last_used
+           FROM fare_searches
+           WHERE user_id = %s
+           GROUP BY drop_location
+           ORDER BY last_used DESC
+           LIMIT 5""",
+        (request.user_id,)
+    )
+    drops = [row[0] for row in cur.fetchall()]
+
+    cur.close()
+    conn.close()
+
+    return jsonify({"recent_pickups": pickups, "recent_drops": drops})
+
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
