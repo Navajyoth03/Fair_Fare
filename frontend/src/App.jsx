@@ -14,6 +14,8 @@ function App() {
   const [aiService, setAiService] = useState('')
   const [aiRecommendation, setAiRecommendation] = useState('')
   const [loadingAi, setLoadingAi] = useState(false)
+  const [recentPickups, setRecentPickups] = useState([])
+  const [recentDrops, setRecentDrops] = useState([])
 
   const handleLoginSuccess = (newToken, email) => {
     setToken(newToken)
@@ -33,6 +35,23 @@ function App() {
     setAiRecommendation('')
     setAiService('')
   }
+
+  const fetchRecentLocations = () => {
+    fetch('http://127.0.0.1:5000/api/recent-locations', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => {
+        setRecentPickups(data.recent_pickups || [])
+        setRecentDrops(data.recent_drops || [])
+      })
+  }
+
+  useEffect(() => {
+    if (token) {
+      fetchRecentLocations()
+    }
+  }, [token])
 
   const handleSearch = async () => {
     const response = await fetch('http://127.0.0.1:5000/api/search-fares', {
@@ -54,6 +73,7 @@ function App() {
     setRecommendations(data.recommendations)
     setAiRecommendation('')
     setAiService('')
+    fetchRecentLocations()
   }
 
   const handleAskAi = async () => {
@@ -81,7 +101,7 @@ function App() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1>FairFare</h1>
         <button onClick={handleLogout} style={{ width: 'auto', padding: '6px 12px' }}>
-          Logout 
+          Logout
         </button>
       </div>
 
@@ -90,13 +110,27 @@ function App() {
         placeholder="Pickup location"
         value={pickup}
         onChange={(e) => setPickup(e.target.value)}
+        list="pickup-suggestions"
       />
+      <datalist id="pickup-suggestions">
+        {recentPickups.map((loc, i) => (
+          <option key={i} value={loc} />
+        ))}
+      </datalist>
+
       <input
         type="text"
         placeholder="Drop location"
         value={drop}
         onChange={(e) => setDrop(e.target.value)}
+        list="drop-suggestions"
       />
+      <datalist id="drop-suggestions">
+        {recentDrops.map((loc, i) => (
+          <option key={i} value={loc} />
+        ))}
+      </datalist>
+
       <button onClick={handleSearch}>Search Fares</button>
 
       {fares && (
