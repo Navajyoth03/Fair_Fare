@@ -30,7 +30,7 @@ function Auth({ onLoginSuccess }) {
 
       localStorage.setItem('token', data.token)
       localStorage.setItem('email', data.email)
-      onLoginSuccess(data.token, data.email)
+      onLoginSuccess(data.token, data.email, data.username)
     } catch (err) {
       setError('Could not connect to server')
     }

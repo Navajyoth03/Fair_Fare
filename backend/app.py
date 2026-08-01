@@ -77,8 +77,8 @@ def signup():
     cur = conn.cursor()
     try:
         cur.execute(
-            "INSERT INTO users (email, password_hash) VALUES (%s, %s) RETURNING id",
-            (email, password_hash.decode("utf-8"))
+            "INSERT INTO users (email, password_hash, username) VALUES (%s, %s, %s) RETURNING id",
+            (email, password_hash.decode("utf-8"), email)
         )
         user_id = cur.fetchone()[0]
         conn.commit()
@@ -97,7 +97,7 @@ def signup():
         algorithm="HS256"
     )
 
-    return jsonify({"token": token, "email": email}), 201
+    return jsonify({"token": token, "email": email, "username": email}), 201
 
 
 @app.route("/api/login", methods=["POST"])
@@ -111,7 +111,7 @@ def login():
 
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT id, password_hash FROM users WHERE email = %s", (email,))
+    cur.execute("SELECT id, password_hash, username FROM users WHERE email = %s", (email,))
     user = cur.fetchone()
     cur.close()
     conn.close()
@@ -119,7 +119,7 @@ def login():
     if not user:
         return jsonify({"error": "Invalid email or password"}), 401
 
-    user_id, stored_hash = user
+    user_id, stored_hash, username = user
 
     if not bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8")):
         return jsonify({"error": "Invalid email or password"}), 401
@@ -130,7 +130,25 @@ def login():
         algorithm="HS256"
     )
 
-    return jsonify({"token": token, "email": email})
+    return jsonify({"token": token, "email": email, "username": username})
+
+@app.route("/api/update-username", methods=["POST"])
+@require_auth
+def update_username():
+    data = request.get_json()
+    new_username = data.get("username")
+
+    if not new_username or len(new_username.strip()) == 0:
+        return jsonify({"error": "Username cannot be empty"}), 400
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET username = %s WHERE id = %s", (new_username.strip(), request.user_id))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return jsonify({"username": new_username.strip()})
 
 
 @app.route("/api/forgot-password", methods=["POST"])
