@@ -12,6 +12,7 @@ from email.mime.text import MIMEText
 from functools import wraps
 from dotenv import load_dotenv
 from groq import Groq
+import requests
 
 load_dotenv()
 
@@ -28,6 +29,50 @@ def get_db_connection():
     conn = psycopg2.connect(DATABASE_URL)
     return conn
 
+def geocode_location(place_name):
+    url = "https://nominatim.openstreetmap.org/search"
+    params = {
+        "q": place_name,
+        "format": "json",
+        "limit": 1
+    }
+    headers = {"User-Agent": "FairFareApp/1.0"}
+
+    response = requests.get(url, params=params, headers=headers)
+    results = response.json()
+
+    if not results:
+        return None
+
+    return {
+        "lat": float(results[0]["lat"]),
+        "lon": float(results[0]["lon"]),
+        "display_name": results[0]["display_name"]
+    }
+
+def get_route(pickup_coords, drop_coords):
+    url = f"http://router.project-osrm.org/route/v1/driving/{pickup_coords['lon']},{pickup_coords['lat']};{drop_coords['lon']},{drop_coords['lat']}"
+    params = {"overview": "full", "geometries": "geojson"}
+
+    response = requests.get(url, params=params)
+    data = response.json()
+
+    if data.get("code") != "Ok":
+        return None
+
+    route = data["routes"][0]
+    base_duration_minutes = route["duration"] / 60
+
+    # OSRM gives theoretical driving time with no live traffic data.
+    # Apply a randomized multiplier to roughly simulate typical urban traffic conditions.
+    traffic_multiplier = random.uniform(1.3, 2.0)
+    adjusted_duration_minutes = base_duration_minutes * traffic_multiplier
+
+    return {
+        "distance_km": round(route["distance"] / 1000, 2),
+        "duration_minutes": round(adjusted_duration_minutes, 1),
+        "geometry": route["geometry"]
+    }
 
 def require_auth(f):
     @wraps(f)
@@ -259,6 +304,18 @@ def search_fares():
     if not pickup or not drop:
         return jsonify({"error": "Pickup and drop locations are required"}), 400
 
+    pickup_coords = geocode_location(pickup)
+    if not pickup_coords:
+        return jsonify({"error": f"Could not find location: {pickup}"}), 400
+
+    drop_coords = geocode_location(drop)
+    if not drop_coords:
+        return jsonify({"error": f"Could not find location: {drop}"}), 400
+
+    route = get_route(pickup_coords, drop_coords)
+    if not route:
+        return jsonify({"error": "Could not calculate a route between these locations"}), 400
+
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(
@@ -269,32 +326,34 @@ def search_fares():
     cur.close()
     conn.close()
 
-    base_fare = random.randint(150, 250)
-    base_eta = random.randint(10, 20)
+    distance_km = route["distance_km"]
+    base_eta = route["duration_minutes"]
 
     fare_diff_uber = random.randint(-7, 7)
     fare_diff_ola = random.randint(-7, 7)
     fare_diff_rapido = random.randint(-7, 7)
 
-    eta_diff_uber = random.randint(-4, 4)
-    eta_diff_ola = random.randint(-4, 4)
-    eta_diff_rapido = random.randint(-4, 4)
+    eta_diff_uber = random.randint(-3, 3)
+    eta_diff_ola = random.randint(-3, 3)
+    eta_diff_rapido = random.randint(-3, 3)
+
+    base_fare = round(30 + (distance_km * 12))
 
     fares = [
         {
             "service": "Uber",
             "fare": base_fare + fare_diff_uber,
-            "eta_minutes": max(3, base_eta + eta_diff_uber)
+            "eta_minutes": round(max(3, base_eta + eta_diff_uber), 1)
         },
         {
             "service": "Ola",
             "fare": base_fare + fare_diff_ola,
-            "eta_minutes": max(3, base_eta + eta_diff_ola)
+            "eta_minutes": round(max(3, base_eta + eta_diff_ola), 1)
         },
         {
             "service": "Rapido",
             "fare": base_fare + fare_diff_rapido,
-            "eta_minutes": max(3, base_eta + eta_diff_rapido)
+            "eta_minutes": round(max(3, base_eta + eta_diff_rapido), 1)
         },
     ]
 
@@ -304,12 +363,15 @@ def search_fares():
     return jsonify({
         "pickup": pickup,
         "drop": drop,
+        "distance_km": distance_km,
         "fares": fares,
         "recommendations": {
             "best_for_cost": cheapest["service"],
             "best_for_time": fastest["service"]
-        }
+        },
+        "route_geometry": route["geometry"]
     })
+
 
 
 @app.route("/api/recommend", methods=["POST"])
