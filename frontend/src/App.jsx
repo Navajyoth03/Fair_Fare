@@ -9,6 +9,7 @@ function App() {
 
   const [pickup, setPickup] = useState('')
   const [drop, setDrop] = useState('')
+  const [mode, setMode] = useState('')
   const [fares, setFares] = useState(null)
   const [recommendations, setRecommendations] = useState(null)
   const [preference, setPreference] = useState('')
@@ -165,12 +166,22 @@ function App() {
     <div className="App" style={{ position: 'relative', overflow: 'hidden' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1>FairFare</h1>
-        <button
+        <div
           onClick={() => setShowSidebar(!showSidebar)}
-          style={{ width: 'auto', padding: '6px 12px' }}
+          style={{
+            width: '38px',
+            height: '38px',
+            borderRadius: '50%',
+            overflow: 'hidden',
+            cursor: 'pointer'
+          }}
         >
-          ☰
-        </button>
+          <img
+            src="/profile-icon.png"
+            alt="Profile"
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        </div>
       </div>
 
       {/* Sidebar - now on the RIGHT */}
@@ -340,6 +351,76 @@ function App() {
               </div>
             </div>
           )}
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '8px',
+            marginBottom: '12px',
+            maxWidth: '260px',
+            marginLeft: 'auto',
+            marginRight: 'auto'
+          }}>
+            <div
+              onClick={() => setMode('bike')}
+              style={{
+                border: mode === 'bike' ? '2px solid #4f46e5' : '2px solid #e5e7eb',
+                borderRadius: '8px',
+                padding: '4px',
+                textAlign: 'center',
+                cursor: 'pointer',
+                background: mode === 'bike' ? '#eef2ff' : 'white'
+              }}
+            >
+              <img src="/bike.png" alt="Bike" style={{ width: '85px', height: '80px', objectFit: 'contain' }} />
+              <div style={{ marginTop: '6px', fontSize: '14px' }}>Bike</div>
+            </div>
+
+            <div
+              onClick={() => setMode('auto')}
+              style={{
+                border: mode === 'auto' ? '2px solid #4f46e5' : '2px solid #e5e7eb',
+                borderRadius: '8px',
+                padding: '8px',
+                textAlign: 'center',
+                cursor: 'pointer',
+                background: mode === 'auto' ? '#eef2ff' : 'white'
+              }}
+            >
+              <img src="/auto.png" alt="Auto" style={{ width: '85px', height: '75px', objectFit: 'contain' }} />
+              <div style={{ marginTop: '6px', fontSize: '14px' }}>Auto</div>
+            </div>
+
+            <div
+              onClick={() => setMode('cab_economy')}
+              style={{
+                border: mode === 'cab_economy' ? '2px solid #4f46e5' : '2px solid #e5e7eb',
+                borderRadius: '8px',
+                padding: '8px',
+                textAlign: 'center',
+                cursor: 'pointer',
+                background: mode === 'cab_economy' ? '#eef2ff' : 'white'
+              }}
+            >
+              <img src="/cab-economy.png" alt="Cab Economy" style={{ width: '85px', height: '75px', objectFit: 'contain' }} />
+              <div style={{ marginTop: '6px', fontSize: '14px' }}>Cab (Economy)</div>
+            </div>
+
+            <div
+              onClick={() => setMode('cab_premium')}
+              style={{
+                border: mode === 'cab_premium' ? '2px solid #4f46e5' : '2px solid #e5e7eb',
+                borderRadius: '8px',
+                padding: '8px',
+                textAlign: 'center',
+                cursor: 'pointer',
+                background: mode === 'cab_premium' ? '#eef2ff' : 'white'
+              }}
+            >
+              <img src="/cab-premium.png" alt="Cab Premium" style={{ width: '85px', height: '75px', objectFit: 'contain' }} />
+              <div style={{ marginTop: '6px', fontSize: '14px' }}>Cab (Premium)</div>
+            </div>
+          </div>
         </>
       )}
 
