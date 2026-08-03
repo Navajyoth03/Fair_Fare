@@ -294,15 +294,27 @@ def reset_password():
 
 # ---------------- FARE SEARCH + AI ROUTES ----------------
 
+VEHICLE_PRICING = {
+    "bike": {"base_fare": 40, "per_km": 12, "random_range": 10, "eta_range": (3, 7)},
+    "auto": {"base_fare": 40, "per_km": 15, "random_range": 12, "eta_range": (5, 10)},
+    "cab_economy": {"base_fare": 50, "per_km": 18, "random_range": 15, "eta_range": (7, 10)},
+    "cab_premium": {"base_fare": 65, "per_km": 22, "random_range": 20, "eta_range": (7, 10)},
+}
+
+
 @app.route("/api/search-fares", methods=["POST"])
 @require_auth
 def search_fares():
     data = request.get_json()
     pickup = data.get("pickup")
     drop = data.get("drop")
+    mode = data.get("mode")
 
-    if not pickup or not drop:
-        return jsonify({"error": "Pickup and drop locations are required"}), 400
+    if not pickup or not drop or not mode:
+        return jsonify({"error": "Pickup, drop, and mode are required"}), 400
+
+    if mode not in VEHICLE_PRICING:
+        return jsonify({"error": "Invalid mode selected"}), 400
 
     pickup_coords = geocode_location(pickup)
     if not pickup_coords:
@@ -329,33 +341,25 @@ def search_fares():
     distance_km = route["distance_km"]
     base_eta = route["duration_minutes"]
 
-    fare_diff_uber = random.randint(-7, 7)
-    fare_diff_ola = random.randint(-7, 7)
-    fare_diff_rapido = random.randint(-7, 7)
+    pricing = VEHICLE_PRICING[mode]
 
-    eta_diff_uber = random.randint(-3, 3)
-    eta_diff_ola = random.randint(-3, 3)
-    eta_diff_rapido = random.randint(-3, 3)
+    if distance_km <= 3:
+        tiered_base_fare = pricing["base_fare"]
+    else:
+        extra_km = distance_km - 3
+        tiered_base_fare = pricing["base_fare"] + (extra_km * pricing["per_km"])
 
-    base_fare = round(30 + (distance_km * 12))
+    eta_min, eta_max = pricing["eta_range"]
 
-    fares = [
-        {
-            "service": "Uber",
-            "fare": base_fare + fare_diff_uber,
-            "eta_minutes": round(max(3, base_eta + eta_diff_uber), 1)
-        },
-        {
-            "service": "Ola",
-            "fare": base_fare + fare_diff_ola,
-            "eta_minutes": round(max(3, base_eta + eta_diff_ola), 1)
-        },
-        {
-            "service": "Rapido",
-            "fare": base_fare + fare_diff_rapido,
-            "eta_minutes": round(max(3, base_eta + eta_diff_rapido), 1)
-        },
-    ]
+    fares = []
+    for service_name in ["Uber", "Ola", "Rapido"]:
+        fare = round(tiered_base_fare + random.uniform(0, pricing["random_range"]))
+        eta = round(base_eta + random.uniform(eta_min, eta_max))
+        fares.append({
+            "service": service_name,
+            "fare": fare,
+            "eta_minutes": eta
+        })
 
     cheapest = min(fares, key=lambda f: f["fare"])
     fastest = min(fares, key=lambda f: f["eta_minutes"])
@@ -363,7 +367,8 @@ def search_fares():
     return jsonify({
         "pickup": pickup,
         "drop": drop,
-        "distance_km": distance_km,
+        "mode": mode,
+        "distance_km": round(distance_km, 1),
         "fares": fares,
         "recommendations": {
             "best_for_cost": cheapest["service"],
@@ -371,7 +376,6 @@ def search_fares():
         },
         "route_geometry": route["geometry"]
     })
-
 
 
 @app.route("/api/recommend", methods=["POST"])

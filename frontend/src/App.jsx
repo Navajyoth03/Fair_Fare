@@ -10,7 +10,9 @@ function App() {
   const [pickup, setPickup] = useState('')
   const [drop, setDrop] = useState('')
   const [mode, setMode] = useState('')
+  const [searchedMode, setSearchedMode] = useState('')
   const [fares, setFares] = useState(null)
+  const [fareCache, setFareCache] = useState({})
   const [recommendations, setRecommendations] = useState(null)
   const [preference, setPreference] = useState('')
   const [aiService, setAiService] = useState('')
@@ -27,6 +29,13 @@ function App() {
   const [editingUsername, setEditingUsername] = useState(false)
   const [usernameDraft, setUsernameDraft] = useState('')
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
+
+  const modeLabels = {
+    bike: 'Bike',
+    auto: 'Auto',
+    cab_economy: 'Cab (Economy)',
+    cab_premium: 'Cab (Premium)'
+  }
 
   const handleLoginSuccess = (newToken, email, uname) => {
     setToken(newToken)
@@ -46,6 +55,7 @@ function App() {
     setRecommendations(null)
     setPickup('')
     setDrop('')
+    setMode('')
     setPreference('')
     setAiRecommendation('')
     setAiService('')
@@ -71,14 +81,23 @@ function App() {
     }
   }, [token])
 
-  const handleSearch = async () => {
+  const performSearch = async (selectedMode) => {
+    if (fareCache[selectedMode]) {
+      setFares(fareCache[selectedMode].fares)
+      setRecommendations(fareCache[selectedMode].recommendations)
+      setSearchedMode(selectedMode)
+      setAiRecommendation('')
+      setAiService('')
+      return
+    }
+
     const response = await fetch('http://127.0.0.1:5000/api/search-fares', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify({ pickup, drop })
+      body: JSON.stringify({ pickup, drop, mode: selectedMode })
     })
 
     if (response.status === 401) {
@@ -87,11 +106,33 @@ function App() {
     }
 
     const data = await response.json()
+
+    if (!response.ok) {
+      alert(data.error || 'Something went wrong')
+      return
+    }
+
     setFares(data.fares)
     setRecommendations(data.recommendations)
+    setSearchedMode(selectedMode)
     setAiRecommendation('')
     setAiService('')
+
+    setFareCache(prev => ({
+      ...prev,
+      [selectedMode]: { fares: data.fares, recommendations: data.recommendations }
+    }))
+
     fetchRecentLocations()
+  }
+
+  const handleSearch = () => {
+    if (!mode) {
+      alert('Please select a mode of transport')
+      return
+    }
+    setFareCache({})
+    performSearch(mode)
   }
 
   const handleAskAi = async () => {
@@ -184,7 +225,7 @@ function App() {
         </div>
       </div>
 
-      {/* Sidebar - now on the RIGHT */}
+      {/* Sidebar - RIGHT side */}
       <div style={{
         position: 'fixed',
         top: 0,
@@ -227,57 +268,35 @@ function App() {
           </p>
         </div>
 
-        <div
-          onClick={goHome}
-          style={{ padding: '10px 0', cursor: 'pointer', borderTop: '1px solid #444' }}
-        >
+        <div onClick={goHome} style={{ padding: '10px 0', cursor: 'pointer', borderTop: '1px solid #444' }}>
           Home
         </div>
-        <div
-          onClick={openSearchHistory}
-          style={{ padding: '10px 0', cursor: 'pointer', borderTop: '1px solid #444' }}
-        >
+        <div onClick={openSearchHistory} style={{ padding: '10px 0', cursor: 'pointer', borderTop: '1px solid #444' }}>
           Search History
         </div>
         <div
           onClick={() => setShowLogoutConfirm(true)}
           style={{
-            padding: '10px 0',
-            cursor: 'pointer',
-            position: 'absolute',
-            bottom: '20px',
-            left: '20px',
-            right: '20px',
-            borderTop: '1px solid #444'
+            padding: '10px 0', cursor: 'pointer', position: 'absolute',
+            bottom: '20px', left: '20px', right: '20px', borderTop: '1px solid #444'
           }}
         >
           Logout
         </div>
       </div>
 
-      {/* Overlay to close sidebar when clicking outside */}
       {showSidebar && (
         <div
           onClick={() => setShowSidebar(false)}
-          style={{
-            position: 'fixed',
-            top: 0, left: 0, right: 0, bottom: 0,
-            background: 'rgba(0,0,0,0.3)',
-            zIndex: 99
-          }}
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.3)', zIndex: 99 }}
         />
       )}
 
-      {/* Logout confirmation popup */}
       {showLogoutConfirm && (
         <div style={{
-          position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.5)',
-          zIndex: 200,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', zIndex: 200,
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
         }}>
           <div style={{ background: 'white', padding: '24px', borderRadius: '10px', maxWidth: '300px', textAlign: 'center' }}>
             <p>Are you sure you want to log out?</p>
@@ -289,142 +308,159 @@ function App() {
         </div>
       )}
 
-      {/* Home view */}
       {currentView === 'home' && (
-        <>
-          <input
-            type="text"
-            placeholder="Pickup location"
-            value={pickup}
-            onChange={(e) => setPickup(e.target.value)}
-            list="pickup-suggestions"
-          />
-          <datalist id="pickup-suggestions">
-            {recentPickups.map((loc, i) => (
-              <option key={i} value={loc} />
-            ))}
-          </datalist>
+        <div style={{ display: 'flex', gap: '20px' }}>
 
-          <input
-            type="text"
-            placeholder="Drop location"
-            value={drop}
-            onChange={(e) => setDrop(e.target.value)}
-            list="drop-suggestions"
-          />
-          <datalist id="drop-suggestions">
-            {recentDrops.map((loc, i) => (
-              <option key={i} value={loc} />
-            ))}
-          </datalist>
-
-          <button onClick={handleSearch}>Search Fares</button>
-
-          {fares && (
-            <div>
-              <h2>Fare Comparison</h2>
-              {fares.map((fare) => (
-                <div key={fare.service}>
-                  {fare.service}: ₹{fare.fare} — {fare.eta_minutes} mins
-                </div>
-              ))}
-              <p>Cheapest: {recommendations.best_for_cost}</p>
-              <p>Fastest: {recommendations.best_for_time}</p>
-
-              <div>
-                <h3>Have a specific need? Ask the assistant</h3>
+          {/* LEFT - 40% - pickup/drop + mode grid, all centered */}
+          <div style={{ flex: '0 0 36%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '10px', width: '100%', maxWidth: '340px', marginBottom: '16px' }}>
+              <div style={{ flex: 1 }}>
                 <input
                   type="text"
-                  placeholder="e.g. I need to reach by 6:15, it's 5:45 now"
-                  value={preference}
-                  onChange={(e) => setPreference(e.target.value)}
+                  placeholder="Pickup location"
+                  value={pickup}
+                  onChange={(e) => setPickup(e.target.value)}
+                  list="pickup-suggestions"
+                  style={{ width: '100%' }}
                 />
-                <button onClick={handleAskAi} disabled={loadingAi || !preference}>
-                  {loadingAi ? 'Thinking...' : 'Get Recommendation'}
-                </button>
-
-                {aiRecommendation && (
-                  <div>
-                    <strong>{aiService}:</strong> {aiRecommendation}
-                  </div>
-                )}
+                <datalist id="pickup-suggestions">
+                  {recentPickups.map((loc, i) => (
+                    <option key={i} value={loc} />
+                  ))}
+                </datalist>
+              </div>
+              <div style={{ flex: 1 }}>
+                <input
+                  type="text"
+                  placeholder="Drop location"
+                  value={drop}
+                  onChange={(e) => setDrop(e.target.value)}
+                  list="drop-suggestions"
+                  style={{ width: '100%' }}
+                />
+                <datalist id="drop-suggestions">
+                  {recentDrops.map((loc, i) => (
+                    <option key={i} value={loc} />
+                  ))}
+                </datalist>
               </div>
             </div>
-          )}
 
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '8px',
-            marginBottom: '12px',
-            maxWidth: '260px',
-            marginLeft: 'auto',
-            marginRight: 'auto'
-          }}>
-            <div
-              onClick={() => setMode('bike')}
-              style={{
-                border: mode === 'bike' ? '2px solid #4f46e5' : '2px solid #e5e7eb',
-                borderRadius: '8px',
-                padding: '4px',
-                textAlign: 'center',
-                cursor: 'pointer',
-                background: mode === 'bike' ? '#eef2ff' : 'white'
-              }}
-            >
-              <img src="/bike.png" alt="Bike" style={{ width: '85px', height: '80px', objectFit: 'contain' }} />
-              <div style={{ marginTop: '6px', fontSize: '14px' }}>Bike</div>
-            </div>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '8px',
+              maxWidth: '280px'
+            }}>
+              <div
+                onClick={() => {
+                  setMode('bike')
+                  if (fares) performSearch('bike')
+                }}
+                style={{
+                  border: mode === 'bike' ? '2px solid #4f46e5' : '2px solid #e5e7eb',
+                  borderRadius: '8px', padding: '4px', textAlign: 'center', cursor: 'pointer',
+                  background: mode === 'bike' ? '#eef2ff' : 'white'
+                }}
+              >
+                <img src="/bike.png" alt="Bike" style={{ width: '85px', height: '80px', objectFit: 'contain' }} />
+                <div style={{ marginTop: '6px', fontSize: '14px' }}>Bike</div>
+              </div>
 
-            <div
-              onClick={() => setMode('auto')}
-              style={{
-                border: mode === 'auto' ? '2px solid #4f46e5' : '2px solid #e5e7eb',
-                borderRadius: '8px',
-                padding: '8px',
-                textAlign: 'center',
-                cursor: 'pointer',
-                background: mode === 'auto' ? '#eef2ff' : 'white'
-              }}
-            >
-              <img src="/auto.png" alt="Auto" style={{ width: '85px', height: '75px', objectFit: 'contain' }} />
-              <div style={{ marginTop: '6px', fontSize: '14px' }}>Auto</div>
-            </div>
+              <div
+                onClick={() => {
+                  setMode('auto')
+                  if (fares) performSearch('auto')
+                }}
+                style={{
+                  border: mode === 'auto' ? '2px solid #4f46e5' : '2px solid #e5e7eb',
+                  borderRadius: '8px', padding: '8px', textAlign: 'center', cursor: 'pointer',
+                  background: mode === 'auto' ? '#eef2ff' : 'white'
+                }}
+              >
+                <img src="/auto.png" alt="Auto" style={{ width: '85px', height: '75px', objectFit: 'contain' }} />
+                <div style={{ marginTop: '6px', fontSize: '14px' }}>Auto</div>
+              </div>
 
-            <div
-              onClick={() => setMode('cab_economy')}
-              style={{
-                border: mode === 'cab_economy' ? '2px solid #4f46e5' : '2px solid #e5e7eb',
-                borderRadius: '8px',
-                padding: '8px',
-                textAlign: 'center',
-                cursor: 'pointer',
-                background: mode === 'cab_economy' ? '#eef2ff' : 'white'
-              }}
-            >
-              <img src="/cab-economy.png" alt="Cab Economy" style={{ width: '85px', height: '75px', objectFit: 'contain' }} />
-              <div style={{ marginTop: '6px', fontSize: '14px' }}>Cab (Economy)</div>
-            </div>
+              <div
+                onClick={() => {
+                  setMode('cab_economy')
+                  if (fares) performSearch('cab_economy')
+                }}
+                style={{
+                  border: mode === 'cab_economy' ? '2px solid #4f46e5' : '2px solid #e5e7eb',
+                  borderRadius: '8px', padding: '8px', textAlign: 'center', cursor: 'pointer',
+                  background: mode === 'cab_economy' ? '#eef2ff' : 'white'
+                }}
+              >
+                <img src="/cab-economy.png" alt="Cab Economy" style={{ width: '85px', height: '75px', objectFit: 'contain' }} />
+                <div style={{ marginTop: '6px', fontSize: '14px' }}>Cab (Economy)</div>
+              </div>
 
-            <div
-              onClick={() => setMode('cab_premium')}
-              style={{
-                border: mode === 'cab_premium' ? '2px solid #4f46e5' : '2px solid #e5e7eb',
-                borderRadius: '8px',
-                padding: '8px',
-                textAlign: 'center',
-                cursor: 'pointer',
-                background: mode === 'cab_premium' ? '#eef2ff' : 'white'
-              }}
-            >
-              <img src="/cab-premium.png" alt="Cab Premium" style={{ width: '85px', height: '75px', objectFit: 'contain' }} />
-              <div style={{ marginTop: '6px', fontSize: '14px' }}>Cab (Premium)</div>
+              <div
+                onClick={() => {
+                  setMode('cab_premium')
+                  if (fares) performSearch('cab_premium')
+                }}
+                style={{
+                  border: mode === 'cab_premium' ? '2px solid #4f46e5' : '2px solid #e5e7eb',
+                  borderRadius: '8px', padding: '8px', textAlign: 'center', cursor: 'pointer',
+                  background: mode === 'cab_premium' ? '#eef2ff' : 'white'
+                }}
+              >
+                <img src="/cab-premium.png" alt="Cab Premium" style={{ width: '85px', height: '75px', objectFit: 'contain' }} />
+                <div style={{ marginTop: '6px', fontSize: '14px' }}>Cab (Premium)</div>
+              </div>
             </div>
           </div>
-        </>
+
+          {/* MIDDLE - 30% - search button + results, all centered */}
+          <div style={{ flex: '0 0 26%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <button onClick={handleSearch} style={{ width: '100%', maxWidth: '260px', marginBottom: '16px' }}>
+              Search Fares
+            </button>
+
+            {fares && (
+              <div style={{ width: '100%', maxWidth: '300px', textAlign: 'center' }}>
+                <h2>{modeLabels[searchedMode]}</h2>
+                <h3>Fare Comparison</h3>
+                {fares.map((fare) => (
+                  <div key={fare.service}>
+                    {fare.service}: ₹{fare.fare} — {fare.eta_minutes} mins
+                  </div>
+                ))}
+                <p>Cheapest: {recommendations.best_for_cost}</p>
+                <p>Fastest: {recommendations.best_for_time}</p>
+
+                <div>
+                  <h3>Have a specific need? Ask the assistant</h3>
+                  <input
+                    type="text"
+                    placeholder="e.g. I need to reach by 6:15, it's 5:45 now"
+                    value={preference}
+                    onChange={(e) => setPreference(e.target.value)}
+                  />
+                  <button onClick={handleAskAi} disabled={loadingAi || !preference}>
+                    {loadingAi ? 'Thinking...' : 'Get Recommendation'}
+                  </button>
+
+                  {aiRecommendation && (
+                    <div>
+                      <strong>{aiService}:</strong> {aiRecommendation}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT - 30% - map placeholder */}
+          <div style={{ flex: '0 0 38%' }}>
+          </div>
+
+        </div>
       )}
 
-      {/* Search History view */}
       {currentView === 'history' && (
         <div>
           <h2>Search History</h2>
