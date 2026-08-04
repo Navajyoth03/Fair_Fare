@@ -182,3 +182,28 @@
     border-right-color: var(--border);
   }
 }
+
+.App {
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.leaflet-bar {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15) !important;
+  border: none !important;
+}
+
+.leaflet-control-zoom a {
+  box-shadow: none !important;
+  border-color: var(--border) !important;
+}
+
+.leaflet-control-zoom a:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.leaflet-control-attribution {
+  z-index: 1 !important;
+}

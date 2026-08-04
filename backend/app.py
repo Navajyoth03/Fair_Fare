@@ -532,6 +532,31 @@ def recent_locations():
 
     return jsonify({"recent_pickups": pickups, "recent_drops": drops})
 
+BANGALORE_DEFAULT = {"lat": 12.9716, "lon": 77.5946}
+
+
+@app.route("/api/last-location", methods=["GET"])
+@require_auth
+def last_location():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT drop_location FROM fare_searches WHERE user_id = %s ORDER BY created_at DESC LIMIT 1",
+        (request.user_id,)
+    )
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+
+    if not row:
+        return jsonify({"lat": BANGALORE_DEFAULT["lat"], "lon": BANGALORE_DEFAULT["lon"]})
+
+    coords = geocode_location(row[0])
+    if not coords:
+        return jsonify({"lat": BANGALORE_DEFAULT["lat"], "lon": BANGALORE_DEFAULT["lon"]})
+
+    return jsonify({"lat": coords["lat"], "lon": coords["lon"]})
+
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

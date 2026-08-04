@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 import Auth from './Auth'
+import Map from './Map'
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('token'))
@@ -20,6 +21,8 @@ function App() {
   const [loadingAi, setLoadingAi] = useState(false)
   const [recentPickups, setRecentPickups] = useState([])
   const [recentDrops, setRecentDrops] = useState([])
+
+  const [routeGeometry, setRouteGeometry] = useState(null)
 
   const [showSidebar, setShowSidebar] = useState(false)
   const [currentView, setCurrentView] = useState('home')
@@ -115,6 +118,7 @@ function App() {
     setFares(data.fares)
     setRecommendations(data.recommendations)
     setSearchedMode(selectedMode)
+    setRouteGeometry(data.route_geometry)
     setAiRecommendation('')
     setAiService('')
 
@@ -132,6 +136,7 @@ function App() {
       return
     }
     setFareCache({})
+    setRouteGeometry(null)
     performSearch(mode)
   }
 
@@ -235,7 +240,7 @@ function App() {
         background: '#1a1a2e',
         color: 'white',
         transition: 'right 0.25s ease',
-        zIndex: 100,
+        zIndex: 10000,
         padding: '20px',
         boxSizing: 'border-box'
       }}>
@@ -288,14 +293,14 @@ function App() {
       {showSidebar && (
         <div
           onClick={() => setShowSidebar(false)}
-          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.3)', zIndex: 99 }}
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.3)', zIndex: 9999 }}
         />
       )}
 
       {showLogoutConfirm && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.5)', zIndex: 200,
+          background: 'rgba(0,0,0,0.5)', zIndex: 20000,
           display: 'flex', alignItems: 'center', justifyContent: 'center'
         }}>
           <div style={{ background: 'white', padding: '24px', borderRadius: '10px', maxWidth: '300px', textAlign: 'center' }}>
@@ -309,10 +314,11 @@ function App() {
       )}
 
       {currentView === 'home' && (
-        <div style={{ display: 'flex', gap: '20px' }}>
-
+        <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', maxWidth: '100%', overflowX: 'hidden' }}>
+          <div style={{flex: '0 0 0.0001%', display: 'flex'}} >
+          </div>  
           {/* LEFT - 40% - pickup/drop + mode grid, all centered */}
-          <div style={{ flex: '0 0 36%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ flex: '0 0 30%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div style={{ display: 'flex', gap: '10px', width: '100%', maxWidth: '340px', marginBottom: '16px' }}>
               <div style={{ flex: 1 }}>
                 <input
@@ -456,8 +462,10 @@ function App() {
 
           {/* RIGHT - 30% - map placeholder */}
           <div style={{ flex: '0 0 38%' }}>
+          <div style={{ flex: '0 0 30%', height: '400px',maxWidth: '100%', overflow: 'hidden' }}>
+            <Map token={token} routeGeometry={routeGeometry} />
           </div>
-
+          </div>
         </div>
       )}
 
