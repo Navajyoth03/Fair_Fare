@@ -229,6 +229,7 @@ function App() {
           />
         </div>
       </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}></div>
 
       {/* Sidebar - RIGHT side */}
       <div style={{
@@ -237,7 +238,7 @@ function App() {
         right: showSidebar ? 0 : '-260px',
         width: '260px',
         height: '100%',
-        background: '#1a1a2e',
+        background: '#1A1F2E',
         color: 'white',
         transition: 'right 0.25s ease',
         zIndex: 10000,
@@ -264,26 +265,26 @@ function App() {
             </div>
           ) : (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 'bold', wordBreak: 'break-all' }}>{username}</span>
+              <span style={{ fontWeight: 'bold', wordBreak: 'break-all',color: '#2DD4CF' }}>{username}</span>
               <span onClick={startEditingUsername} style={{ cursor: 'pointer', marginLeft: '8px' }}>✏️</span>
             </div>
           )}
-          <p style={{ fontSize: '12px', color: '#aaa', wordBreak: 'break-all', marginTop: '4px' }}>
+          <p style={{ fontSize: '12px',color: '#2DD4CF', wordBreak: 'break-all', marginTop: '4px' }}>
             {userEmail}
           </p>
         </div>
 
-        <div onClick={goHome} style={{ padding: '10px 0', cursor: 'pointer', borderTop: '1px solid #444' }}>
+        <div onClick={goHome} style={{ padding: '10px 0', cursor: 'pointer', borderTop: '1px solid #2DD4CF' }}>
           Home
         </div>
-        <div onClick={openSearchHistory} style={{ padding: '10px 0', cursor: 'pointer', borderTop: '1px solid #444' }}>
+        <div onClick={openSearchHistory} style={{ padding: '10px 0', cursor: 'pointer', borderTop: '1px solid #2A3B5C' }}>
           Search History
         </div>
         <div
           onClick={() => setShowLogoutConfirm(true)}
           style={{
             padding: '10px 0', cursor: 'pointer', position: 'absolute',
-            bottom: '20px', left: '20px', right: '20px', borderTop: '1px solid #444'
+            bottom: '20px', left: '20px', right: '20px', borderTop: '1px solid #2A3B5C'
           }}
         >
           Logout
@@ -364,9 +365,9 @@ function App() {
                   if (fares) performSearch('bike')
                 }}
                 style={{
-                  border: mode === 'bike' ? '2px solid #4f46e5' : '2px solid #e5e7eb',
+                  border: mode === 'bike' ? '2px solid #2DD4CF' : '2px solid #2A3142',
                   borderRadius: '8px', padding: '4px', textAlign: 'center', cursor: 'pointer',
-                  background: mode === 'bike' ? '#eef2ff' : 'white'
+                  background: mode === 'bike' ? '#1A2E2D' : '#1A1F2E'
                 }}
               >
                 <img src="/bike.png" alt="Bike" style={{ width: '85px', height: '80px', objectFit: 'contain' }} />
@@ -379,9 +380,9 @@ function App() {
                   if (fares) performSearch('auto')
                 }}
                 style={{
-                  border: mode === 'auto' ? '2px solid #4f46e5' : '2px solid #e5e7eb',
+                  border: mode === 'auto' ? '2px solid #2DD4CF' : '2px solid #2A3142',
                   borderRadius: '8px', padding: '8px', textAlign: 'center', cursor: 'pointer',
-                  background: mode === 'auto' ? '#eef2ff' : 'white'
+                  background: mode === 'auto' ? '#1A2E2D' : '#1A1F2E'
                 }}
               >
                 <img src="/auto.png" alt="Auto" style={{ width: '85px', height: '75px', objectFit: 'contain' }} />
@@ -394,9 +395,9 @@ function App() {
                   if (fares) performSearch('cab_economy')
                 }}
                 style={{
-                  border: mode === 'cab_economy' ? '2px solid #4f46e5' : '2px solid #e5e7eb',
+                  border: mode === 'cab_economy' ? '2px solid #2DD4CF' : '2px solid #2A3142',
                   borderRadius: '8px', padding: '8px', textAlign: 'center', cursor: 'pointer',
-                  background: mode === 'cab_economy' ? '#eef2ff' : 'white'
+                  background: mode === 'cab_economy' ? '#1A2E2D' : '#1A1F2E'
                 }}
               >
                 <img src="/cab-economy.png" alt="Cab Economy" style={{ width: '85px', height: '75px', objectFit: 'contain' }} />
@@ -409,9 +410,9 @@ function App() {
                   if (fares) performSearch('cab_premium')
                 }}
                 style={{
-                  border: mode === 'cab_premium' ? '2px solid #4f46e5' : '2px solid #e5e7eb',
+                  border: mode === 'cab_premium' ? '2px solid #2DD4CF' : '2px solid #2A3142',
                   borderRadius: '8px', padding: '8px', textAlign: 'center', cursor: 'pointer',
-                  background: mode === 'cab_premium' ? '#eef2ff' : 'white'
+                  background: mode === 'cab_premium' ? '#1A2E2D' : '#1A1F2E'
                 }}
               >
                 <img src="/cab-premium.png" alt="Cab Premium" style={{ width: '85px', height: '75px', objectFit: 'contain' }} />
@@ -431,12 +432,13 @@ function App() {
                 <h2>{modeLabels[searchedMode]}</h2>
                 <h3>Fare Comparison</h3>
                 {fares.map((fare) => (
-                  <div key={fare.service}>
-                    {fare.service}: ₹{fare.fare} — {fare.eta_minutes} mins
+                  <div key={fare.service} className="fare-line">
+                    <span>{fare.service}</span>
+                    <span>₹{fare.fare} · {fare.eta_minutes} mins</span>
                   </div>
                 ))}
-                <p>Cheapest: {recommendations.best_for_cost}</p>
-                <p>Fastest: {recommendations.best_for_time}</p>
+                <p>Cheapest: <span className="tag-cheapest">{recommendations.best_for_cost}</span></p>
+                <p>Fastest: <span className="tag-fastest">{recommendations.best_for_time}</span></p>
 
                 <div>
                   <h3>Have a specific need? Ask the assistant</h3>
@@ -462,7 +464,7 @@ function App() {
 
           {/* RIGHT - 30% - map placeholder */}
           <div style={{ flex: '0 0 38%' }}>
-          <div style={{ flex: '0 0 30%', height: '400px',maxWidth: '100%', overflow: 'hidden' }}>
+          <div style={{ flex: '0 0 30%', height: '400px',maxWidth: '97%',alignContent:'center', overflow: 'hidden' }}>
             <Map token={token} routeGeometry={routeGeometry} />
           </div>
           </div>

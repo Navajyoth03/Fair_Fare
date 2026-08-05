@@ -30,6 +30,7 @@ function Auth({ onLoginSuccess }) {
 
       localStorage.setItem('token', data.token)
       localStorage.setItem('email', data.email)
+      localStorage.setItem('username', data.username)
       onLoginSuccess(data.token, data.email, data.username)
     } catch (err) {
       setError('Could not connect to server')
@@ -39,32 +40,62 @@ function Auth({ onLoginSuccess }) {
   }
 
   return (
-    <div className="App">
-      <h1>FairFare</h1>
-      <h2>{isSignup ? 'Create Account' : 'Log In'}</h2>
+    <div style={{
+      minHeight: '100vh',
+      background: '#0F1420',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: '24px'
+    }}>
+      <div style={{ width: '100%', maxWidth: '360px' }}>
+        <h1 style={{
+          fontFamily: "'Space Grotesk', sans-serif",
+          fontWeight: 700,
+          fontSize: '36px',
+          color: '#F5F7FA',
+          marginBottom: '4px'
+        }}>
+          Fair<span style={{ color: '#2DD4CF' }}>Fare</span>
+        </h1>
+        <p style={{ color: '#8B93A7', marginBottom: '32px', fontSize: '15px' }}>
+          Compare rides. Ride smart.
+        </p>
 
-      <input
-        type="email"
-        placeholder="Email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-      />
-      <input
-        type="password"
-        placeholder="Password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-      />
+        <h2 style={{ color: '#F5F7FA', marginBottom: '16px' }}>
+          {isSignup ? 'Create Account' : 'Welcome Back'}
+        </h2>
 
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
 
-      <button onClick={handleSubmit} disabled={loading}>
-        {loading ? 'Please wait...' : isSignup ? 'Sign Up' : 'Log In'}
-      </button>
+        {error && <p style={{ color: '#F87171', fontSize: '14px' }}>{error}</p>}
 
-      <p onClick={() => setIsSignup(!isSignup)} style={{ cursor: 'pointer', textAlign: 'center' }}>
-        {isSignup ? 'Already have an account? Log in' : "Don't have an account? Sign up"}
-      </p>
+        <button onClick={handleSubmit} disabled={loading} style={{ width: '100%', marginTop: '8px' }}>
+          {loading ? 'Please wait...' : isSignup ? 'Sign Up' : 'Log In'}
+        </button>
+
+        <p
+          onClick={() => setIsSignup(!isSignup)}
+          style={{ cursor: 'pointer', textAlign: 'center', color: '#8B93A7', marginTop: '20px', fontSize: '14px' }}
+        >
+          {isSignup ? 'Already have an account? ' : "Don't have an account? "}
+          <span style={{ color: '#2DD4CF', fontWeight: 600 }}>
+            {isSignup ? 'Log in' : 'Sign up'}
+          </span>
+        </p>
+      </div>
     </div>
   )
 }
