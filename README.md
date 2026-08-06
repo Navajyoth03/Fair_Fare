@@ -140,7 +140,7 @@ All routes except signup, login, and password reset require a valid `Authorizati
 ![Home Page](screenshots/home_page.png)
 
 ### Fare Comparison (no ai recommendation)
-![Fare Comparison](screenshots/search1.png)
+![Fare Comparison](screenshots/search_1.png)
 
 ### Fare Comparison (with ai recommendation)
 ![](screenshots/search_ai_response.png)
