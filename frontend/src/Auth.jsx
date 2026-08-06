@@ -57,9 +57,9 @@ function Auth({ onLoginSuccess }) {
           color: '#F5F7FA',
           marginBottom: '4px'
         }}>
-          Fair<span style={{ color: '#2DD4CF' }}>Fare</span>
+          <span style={{ color: '#2DD4CF' }}>FairFare</span>
         </h1>
-        <p style={{ color: '#8B93A7', marginBottom: '32px', fontSize: '15px' }}>
+        <p style={{ color: '#e1e5ef', marginBottom: '32px', fontSize: '15px' }}>
           Compare rides. Ride smart.
         </p>
 

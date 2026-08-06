@@ -1,8 +1,8 @@
 :root {
   --bg: #161e2e;
   --card: #374365;
-  --ink: #4ADE80;
-  --hink : #2DD4CF;
+  --ink: #f8faf9;
+  --hink : #080808;
   --ink-soft: #8B93A7;
   --accent: #2DD4CF;
   --teal: #4ADE80;
@@ -53,25 +53,31 @@ h3 {
   margin: 16px 0 8px 0;
 }
 
-input[type="text"] {
+input[type="text"],
+input[type="email"],
+input[type="password"] {
   font-family: 'Inter', sans-serif;
-  font-size: 14px;
-  padding: 12px 14px;
+  font-size: 15px;
+  padding: 16px 16px;
   border: 1.5px solid var(--border);
   border-radius: 10px;
   width: 100%;
-  margin-bottom: 10px;
+  margin-bottom: 14px;
   background: var(--card);
   color: var(--ink);
   outline: none;
   transition: border-color 0.15s ease;
 }
 
-input[type="text"]::placeholder {
+input[type="text"]::placeholder,
+input[type="email"]::placeholder,
+input[type="password"]::placeholder {
   color: var(--ink-soft);
 }
 
-input[type="text"]:focus {
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus {
   border-color: var(--accent);
 }
 
@@ -114,12 +120,12 @@ button:disabled {
 }
 
 .tag-cheapest {
-  color: var(--accent);
+  color: var(--ink);
   font-weight: 600;
 }
 
 .tag-fastest {
-  color: var(--accent);
+  color: var(--ink);
   font-weight: 600;
 }
 

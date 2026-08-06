@@ -100,7 +100,7 @@ function App() {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify({ pickup, drop, mode: selectedMode })
+      body: JSON.stringify({ pickup, drop, mode: selectedMode, log_history: false })
     })
 
     if (response.status === 401) {
@@ -137,7 +137,7 @@ function App() {
     }
     setFareCache({})
     setRouteGeometry(null)
-    performSearch(mode)
+    performSearch(mode,true)
   }
 
   const handleAskAi = async () => {
@@ -210,7 +210,23 @@ function App() {
 
   return (
     <div className="App" style={{ position: 'relative', overflow: 'hidden' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        background: '#26BDB8',
+        border: '1px solid #2A3142',
+        borderTopLeftRadius: '0',
+        borderTopRightRadius: '0',
+        borderBottomLeftRadius: '20px',
+        borderBottomRightRadius: '20px',
+        padding: '16px 32px',
+        marginLeft: '-32px',
+        marginRight: '-32px',
+        marginTop: '-24px',
+        marginBottom: '24px',
+        width: 'calc(100% + 64px)'
+      }}>
         <h1>FairFare</h1>
         <div
           onClick={() => setShowSidebar(!showSidebar)}
@@ -229,7 +245,7 @@ function App() {
           />
         </div>
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}></div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}></div>
 
       {/* Sidebar - RIGHT side */}
       <div style={{
@@ -284,7 +300,8 @@ function App() {
           onClick={() => setShowLogoutConfirm(true)}
           style={{
             padding: '10px 0', cursor: 'pointer', position: 'absolute',
-            bottom: '20px', left: '20px', right: '20px', borderTop: '1px solid #2A3B5C'
+            bottom: '20px', left: '20px', right: '20px', borderTop: '1px solid #2A3B5C',
+            color: '#F87171'
           }}
         >
           Logout
@@ -305,7 +322,7 @@ function App() {
           display: 'flex', alignItems: 'center', justifyContent: 'center'
         }}>
           <div style={{ background: 'white', padding: '24px', borderRadius: '10px', maxWidth: '300px', textAlign: 'center' }}>
-            <p>Are you sure you want to log out?</p>
+            <p style={{ color: '#080808' }}>Are you sure you want to log out?</p>
             <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
               <button onClick={performLogout} style={{ flex: 1 }}>Confirm</button>
               <button onClick={() => setShowLogoutConfirm(false)} style={{ flex: 1 }}>Cancel</button>
@@ -319,7 +336,7 @@ function App() {
           <div style={{flex: '0 0 0.0001%', display: 'flex'}} >
           </div>  
           {/* LEFT - 40% - pickup/drop + mode grid, all centered */}
-          <div style={{ flex: '0 0 30%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ flex: '0 0 32%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div style={{ display: 'flex', gap: '10px', width: '100%', maxWidth: '340px', marginBottom: '16px' }}>
               <div style={{ flex: 1 }}>
                 <input
@@ -422,7 +439,7 @@ function App() {
           </div>
 
           {/* MIDDLE - 30% - search button + results, all centered */}
-          <div style={{ flex: '0 0 26%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ flex: '0 0 30%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <button onClick={handleSearch} style={{ width: '100%', maxWidth: '260px', marginBottom: '16px' }}>
               Search Fares
             </button>
@@ -463,7 +480,7 @@ function App() {
           </div>
 
           {/* RIGHT - 30% - map placeholder */}
-          <div style={{ flex: '0 0 38%' }}>
+          <div style={{ flex: '0 0 30%' }}>
           <div style={{ flex: '0 0 30%', height: '400px',maxWidth: '97%',alignContent:'center', overflow: 'hidden' }}>
             <Map token={token} routeGeometry={routeGeometry} />
           </div>
@@ -473,7 +490,7 @@ function App() {
 
       {currentView === 'history' && (
         <div>
-          <h2>Search History</h2>
+          <h2 style={{ fontSize: '32px' }}>Search History</h2>
           {loadingHistory && <p>Loading...</p>}
           {!loadingHistory && searchHistory.length === 0 && <p>No searches yet.</p>}
           {!loadingHistory && searchHistory.map((item, i) => (

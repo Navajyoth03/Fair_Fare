@@ -309,6 +309,7 @@ def search_fares():
     pickup = data.get("pickup")
     drop = data.get("drop")
     mode = data.get("mode")
+    log_history = data.get("log_history", True)
 
     if not pickup or not drop or not mode:
         return jsonify({"error": "Pickup, drop, and mode are required"}), 400
@@ -327,6 +328,17 @@ def search_fares():
     route = get_route(pickup_coords, drop_coords)
     if not route:
         return jsonify({"error": "Could not calculate a route between these locations"}), 400
+
+    if log_history:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO fare_searches (pickup_location, drop_location, user_id) VALUES (%s, %s, %s)",
+            (pickup, drop, request.user_id)
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
 
     conn = get_db_connection()
     cur = conn.cursor()
