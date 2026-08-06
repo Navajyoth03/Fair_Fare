@@ -84,7 +84,7 @@ function App() {
     }
   }, [token])
 
-  const performSearch = async (selectedMode) => {
+  const performSearch = async (selectedMode, logHistory = false) => {
     if (fareCache[selectedMode]) {
       setFares(fareCache[selectedMode].fares)
       setRecommendations(fareCache[selectedMode].recommendations)
@@ -100,7 +100,7 @@ function App() {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify({ pickup, drop, mode: selectedMode, log_history: false })
+      body: JSON.stringify({ pickup, drop, mode: selectedMode, log_history: logHistory })
     })
 
     if (response.status === 401) {

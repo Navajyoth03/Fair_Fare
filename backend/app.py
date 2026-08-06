@@ -340,15 +340,6 @@ def search_fares():
         cur.close()
         conn.close()
 
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute(
-        "INSERT INTO fare_searches (pickup_location, drop_location, user_id) VALUES (%s, %s, %s)",
-        (pickup, drop, request.user_id)
-    )
-    conn.commit()
-    cur.close()
-    conn.close()
 
     distance_km = route["distance_km"]
     base_eta = route["duration_minutes"]
