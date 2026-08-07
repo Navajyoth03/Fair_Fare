@@ -15,7 +15,7 @@ This project was built to explore full-stack development end-to-end — authenti
 - **User authentication** — signup/login with hashed passwords (bcrypt), JWT-based sessions, and email-based OTP password recovery
 - **Real-world routing** — accurate distance and travel time calculated via OpenStreetMap geocoding and routing services
 - **Tiered, distance-based pricing** — per-vehicle-category pricing model (Bike, Auto, Cab Economy, Cab Premium)
-- **AI recommendation assistant** — interprets natural-language preferences (time constraints, budget constraints, or general priorities) and recommends the best option with a reasoned explanation
+- **AI recommendation assistant** — interprets natural-language preferences using a hybrid approach: explicit numeric constraints (time limits, budgets) are parsed and resolved deterministically in code for reliability, while subjective/vague preferences are interpreted by an LLM; the LLM is also used to phrase the final recommendation in natural language
 - **Interactive map** — displays the computed route between pickup and drop locations
 - **Search history** — persistent record of past searches per user
 - **Recent-location suggestions** — auto-suggests recently used pickup/drop locations

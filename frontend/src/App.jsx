@@ -470,8 +470,8 @@ function App() {
                   </button>
 
                   {aiRecommendation && (
-                    <div>
-                      <strong>{aiService}:</strong> {aiRecommendation}
+                    <div style={{ marginTop: '16px', padding: '12px', background: '#0F1420', borderRadius: '10px', border: '1px solid #2A3142' }}>
+                      <strong style={{ color: '#2DD4CF' }}>{aiService}:</strong> {aiRecommendation}
                     </div>
                   )}
                 </div>
